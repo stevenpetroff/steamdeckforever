@@ -1,0 +1,11 @@
+## Interface: 11506
+## Title: DeckChat
+## Notes: Keeps chat logging on and flushed for the deckchat phone companion.
+## Version: 0.1.0
+## SavedVariables: DeckChatDB
+
+# Pairing.lua is written by the deckchat service on the Deck. It is optional:
+# without it, /deckchat pair prints a hint instead of the QR code.
+Pairing.lua
+DeckChat.lua
+PairFrame.lua

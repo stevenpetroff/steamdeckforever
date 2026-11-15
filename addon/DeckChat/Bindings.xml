@@ -1,0 +1,5 @@
+<Bindings>
+	<Binding name="DECKCHAT_OPEN" header="DECKCHAT">
+		DeckChat_Open()
+	</Binding>
+</Bindings>
