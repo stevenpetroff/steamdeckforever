@@ -26,6 +26,7 @@ Usage:
   deckchat pair --reset      issue a new pairing code; old phones are signed out
   deckchat send <text>       send one chat message into WoW (for testing)
   deckchat install-addon DIR copy the DeckChat add-on folder into WoW
+  deckchat addon-dir         print where the add-on is installed
 `
 
 func main() {
@@ -61,6 +62,11 @@ func main() {
 			break
 		}
 		err = installAddon(args[1])
+	case "addon-dir":
+		var dir string
+		if dir, err = addonDir(); err == nil {
+			fmt.Println(dir)
+		}
 	case "-h", "--help", "help":
 		fmt.Print(usage)
 	default:
@@ -102,20 +108,31 @@ func pairReset() error {
 	return nil
 }
 
-func installAddon(src string) error {
+// addonDir is where the DeckChat add-on lives in the resolved WoW install.
+func addonDir() (string, error) {
 	p, err := userPaths()
 	if err != nil {
-		return err
+		return "", err
 	}
 	cfg, err := config.Load(p.config)
 	if err != nil {
-		return err
+		return "", err
 	}
 	inst, _, err := wowpath.Resolve(p.home, cfg.WoWPath)
 	if err != nil {
+		return "", err
+	}
+	return filepath.Join(inst.AddOnsDir, "DeckChat"), nil
+}
+
+func installAddon(src string) error {
+	if fi, err := os.Stat(src); err != nil || !fi.IsDir() {
+		return fmt.Errorf("%s is not a directory", src)
+	}
+	dst, err := addonDir()
+	if err != nil {
 		return err
 	}
-	dst := filepath.Join(inst.AddOnsDir, "DeckChat")
 	if err := copyDir(src, dst); err != nil {
 		return err
 	}

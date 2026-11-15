@@ -1,0 +1,11 @@
+[Unit]
+Description=DeckChat - WoW Forever chat on your phone
+After=default.target
+
+[Service]
+ExecStart=%h/.local/bin/deckchat run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

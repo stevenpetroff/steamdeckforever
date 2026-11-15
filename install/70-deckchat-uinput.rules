@@ -1,0 +1,3 @@
+# Let the logged-in user create the DeckChat virtual keyboard. Installed by
+# DeckChat's install.sh only when /dev/uinput isn't already writable.
+KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess"
