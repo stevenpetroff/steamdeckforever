@@ -24,8 +24,8 @@ const (
 
 // Message is one parsed chat log line.
 type Message struct {
-	ID          string  `json:"id"`                     // assigned by the hub, monotonically increasing
-	Time        string  `json:"time"`                   // as written in the log, e.g. "11/14 18:02:11.204"
+	ID          string  `json:"id"`   // assigned by the hub, monotonically increasing
+	Time        string  `json:"time"` // as written in the log, e.g. "11/14 18:02:11.204"
 	Channel     Channel `json:"channel"`
 	ChannelName string  `json:"channel_name,omitempty"` // e.g. "2. Trade - City" for numbered channels
 	Sender      string  `json:"sender,omitempty"`
