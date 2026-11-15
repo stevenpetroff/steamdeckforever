@@ -25,6 +25,7 @@ Usage:
   deckchat doctor            check the install, WoW, keyboard and display
   deckchat pair --reset      issue a new pairing code; old phones are signed out
   deckchat send <text>       send one chat message into WoW (for testing)
+  deckchat paste <text|->    paste text (or stdin with -) into the focused WoW text box
   deckchat install-addon DIR copy the DeckChat add-on folder into WoW
   deckchat addon-dir         print where the add-on is installed
 `
@@ -56,6 +57,12 @@ func main() {
 			break
 		}
 		err = sendOnce(ctx, args[1])
+	case "paste":
+		if len(args) != 2 {
+			err = errors.New("usage: deckchat paste <text|->")
+			break
+		}
+		err = pasteOnce(ctx, args[1])
 	case "install-addon":
 		if len(args) != 2 {
 			err = errors.New("usage: deckchat install-addon DIR")

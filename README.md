@@ -4,6 +4,7 @@ Read and type WoW Forever chat on your phone while you play on a Steam Deck, han
 
 - Your phone shows live chat in WoW's colors. Tap a whisper to reply.
 - Type with your phone's keyboard (autocorrect, swipe, dictation, emoji), tap **Send**, and the message goes into WoW's own chat box. `/w`, `/g`, `/p`, `/r` and your current channel all work as in game.
+- **Paste mode** pastes anything into the WoW text box you've selected, like a WeakAura import string copied on your phone. Click the box in WoW first, then tap **Paste**.
 - Everything stays on your Deck and phone. No account, no cloud, no internet connection is used.
 
 ## How it works
@@ -39,10 +40,12 @@ It sends only when WoW is the focused window, and only one message per tap. It n
   - `deckchat doctor` checks the install.
   - `deckchat pair --reset` signs out every paired phone and makes a new code (then `/reload` and pair again).
   - `deckchat send "/s hi"` is a test send.
+  - `deckchat paste - < aura.txt` pastes a file into the selected WoW text box.
 
 ## Troubleshooting
 
 - **Phone says "Not paired":** in WoW, run `/deckchat pair` and scan again.
+- **Paste did nothing:** click the text box in WoW so it has a cursor, then tap **Paste** again. If no box was selected, DeckChat blocks the paste and says so in chat. In combat it can't block it, so Ctrl+V does whatever it's bound to.
 - **"WoW isn't in front":** close the Steam overlay or keyboard and tap back into the game.
 - **"Keyboard unavailable":** run `./install.sh` again. A SteamOS update can remove the permission rule.
 - **The phone can't connect after the Deck changed networks:** `/reload` in WoW, then pair again.
@@ -56,7 +59,7 @@ Run `./uninstall.sh` from the release folder.
 
 - Blizzard's Terms of Use restrict third-party software that sends input to the game. DeckChat sends only what you write, one message per tap, and never automates gameplay, but the risk is yours to accept.
 - Phone traffic isn't encrypted. Your pairing secret never crosses the network after you scan the code, but someone on the same Wi-Fi could read chat. Use it on networks you trust.
-- The phone page's art is original. Fonts are Cinzel, Metamorphous and Marcellus (SIL Open Font License). DeckChat isn't affiliated with Blizzard.
+- The phone page uses WoW's chat colors but no Blizzard art or fonts. DeckChat isn't affiliated with Blizzard.
 
 ## Development
 

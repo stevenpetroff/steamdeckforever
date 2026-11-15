@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -259,10 +260,37 @@ func newSender() (*gameDisplay, *input.Sender) {
 	return game, input.NewSender(input.OpenUinput, game, game, input.Options{})
 }
 
+// cliLinger keeps a one-shot command's clipboard owner alive for a moment:
+// the game reads the clipboard after the keys arrive, and the selection goes
+// away when this process exits.
+func cliLinger() { time.Sleep(time.Second) }
+
+// pasteOnce pastes text, or all of stdin for "-", into WoW's focused text box.
+func pasteOnce(ctx context.Context, arg string) error {
+	text := arg
+	if arg == "-" {
+		b, err := io.ReadAll(io.LimitReader(os.Stdin, protocol.MaxPasteBytes+1))
+		if err != nil {
+			return err
+		}
+		text = string(b)
+	}
+	_, sender := newSender()
+	defer sender.Close()
+	res := sender.Paste(ctx, fmt.Sprintf("cli-%d", time.Now().UnixNano()), text)
+	cliLinger()
+	if res.Outcome != protocol.OutcomeSent {
+		return fmt.Errorf("not pasted: %s", res.Reason)
+	}
+	fmt.Println("pasted")
+	return nil
+}
+
 func sendOnce(ctx context.Context, text string) error {
 	_, sender := newSender()
 	defer sender.Close()
 	res := sender.Send(ctx, fmt.Sprintf("cli-%d", time.Now().UnixNano()), text)
+	cliLinger()
 	if res.Outcome != protocol.OutcomeSent {
 		return fmt.Errorf("not sent: %s", res.Reason)
 	}

@@ -40,8 +40,8 @@ HMAC keys are the 16 raw secret bytes (hex-decoded). MACs are lowercase hex HMAC
 
 - `not_focused`: WoW isn't the focused window.
 - `focus_lost`: focus moved away mid-send.
-- `too_long`: more than 255 UTF-8 bytes.
-- `invalid_text`: empty, or contains a newline.
+- `too_long`: more than 255 UTF-8 bytes (`send`) or 196,608 bytes (`paste`).
+- `invalid_text`: empty, or (`send` only) contains a newline.
 - `input_unavailable`: the virtual keyboard or clipboard is unavailable.
 - `stale`: `ts` is more than 10 s old.
 
@@ -59,3 +59,12 @@ HMAC keys are the 16 raw secret bytes (hex-decoded). MACs are lowercase hex HMAC
 - A bad or missing MAC closes the socket with 1008, and nothing is typed. A malformed frame or invalid `id` closes it with 4000.
 - A `ts` more than 10 s off the server clock gets `not_sent` / `stale`.
 - A repeated `id` gets the stored result of the first attempt (or waits for it). It's never sent to the game twice.
+
+`{"type":"paste","id":"<client id>","ts":<unix ms>,"text":"<text>","mac":"<hex>"}`
+
+Pastes `text` into whichever WoW text box has focus (a WeakAura import box, for example) and doesn't press Enter. The service sets the clipboard, presses the add-on's paste guard chord (CTRL-ALT-SHIFT-F11), then Ctrl+V. A focused edit box swallows the chord and takes the paste. With nothing focused, the chord fires the add-on's guard, which blocks Ctrl+V for 1 s (outside combat) and prints a hint in chat. `sent` means the keys went out, not that a box received them.
+
+- `mac = HMAC(secret, "paste|" + nonce + "|" + id + "|" + ts + "|" + text)`. The prefix keeps a `send` MAC from authorizing a paste.
+- `text` may contain newlines, up to 196,608 UTF-8 bytes. After auth, client frames may be up to 2 MiB (enough for a max-size paste with every byte JSON-escaped). Before auth the limit is 8 KiB. Larger frames close with 1009.
+- After Ctrl+V the service waits 750 ms before the next send or paste, so the game has read the clipboard before it changes.
+- `id`, `ts`, staleness, close codes and de-duplication work as for `send`, sharing the same id space.

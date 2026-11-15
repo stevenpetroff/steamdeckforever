@@ -57,6 +57,21 @@ const (
 // MaxMessageBytes is WoW's chat edit box limit in UTF-8 bytes.
 const MaxMessageBytes = 255
 
+// MaxPasteBytes caps paste mode (WeakAura strings and the like). It keeps
+// the clipboard property inside one X request (about 256 KiB without the
+// BIG-REQUESTS extension).
+const MaxPasteBytes = 192 << 10
+
+// Mode is how a phone message is delivered.
+type Mode int
+
+const (
+	// ModeChat opens a clean chat box, pastes one line and presses Enter.
+	ModeChat Mode = iota
+	// ModePaste pastes into whichever WoW text box has focus, without Enter.
+	ModePaste
+)
+
 // SendResult is the final result of one send request.
 type SendResult struct {
 	ID      string  `json:"id"`

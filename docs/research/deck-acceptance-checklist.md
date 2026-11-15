@@ -43,3 +43,9 @@ If any of these fail, stop and revisit the plan (Goal Capsule).
 21. [ ] `deckchat pair --reset` + `/reload` + re-scan: the old phone shows "Not paired", and the new scan works.
 22. [ ] Latency: median in-game → phone delay ≤ 2 s over 20 messages (accepted floor 5 s).
 23. [ ] Uninstall removes everything, and the game still launches.
+
+## Paste mode
+
+24. [ ] **Paste mode reaches a selected box.** Open the WeakAuras import window, click its box, and paste a real import string (50 KB+) from the phone. The import preview appears. Also `deckchat paste - < aura.txt`.
+25. [ ] **Paste guard.** With no text box selected (out of combat), Paste prints the DeckChat hint and Ctrl+V does nothing else. Bind Ctrl+V to something visible first to check.
+26. [ ] **Guard chord is swallowed by edit boxes.** With the chat box or an import box focused, the F11 chord inserts nothing and doesn't trigger the guard message.

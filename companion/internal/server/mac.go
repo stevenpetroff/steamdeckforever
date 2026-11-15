@@ -19,7 +19,18 @@ func SendMAC(key []byte, nonce, id string, ts int64, text string) string {
 	return macHex(key, sendInput(nonce, id, ts, text))
 }
 
+// PasteMAC returns hex(HMAC-SHA256(key, "paste|" + nonce|id|ts|text)). The
+// "paste|" prefix keeps it from ever matching a send MAC (those start with
+// the hex nonce).
+func PasteMAC(key []byte, nonce, id string, ts int64, text string) string {
+	return macHex(key, pasteInput(nonce, id, ts, text))
+}
+
 func authInput(nonce string) string { return "auth|" + nonce }
+
+func pasteInput(nonce, id string, ts int64, text string) string {
+	return "paste|" + sendInput(nonce, id, ts, text)
+}
 
 func sendInput(nonce, id string, ts int64, text string) string {
 	return nonce + "|" + id + "|" + strconv.FormatInt(ts, 10) + "|" + text

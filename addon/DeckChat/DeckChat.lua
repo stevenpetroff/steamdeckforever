@@ -1,15 +1,26 @@
 -- DeckChat: keeps WoWChatLog.txt flushed and gives the deckchat service a
--- chord (CTRL-ALT-SHIFT-F12) that opens a clean chat box.
+-- chord (CTRL-ALT-SHIFT-F12) that opens a clean chat box, plus a paste guard
+-- chord (CTRL-ALT-SHIFT-F11) for pasting into any WoW text box.
 local _, ns = ...
 
 local CHORD = "CTRL-ALT-SHIFT-F12"
+local PASTE_CHORD = "CTRL-ALT-SHIFT-F11"
+-- How long Ctrl+V stays blocked after the paste guard fires.
+local GUARD_SECONDS = 1
 local DEFAULT_FLUSH = 2
 local MIN_FLUSH, MAX_FLUSH = 1, 30
 
 BINDING_HEADER_DECKCHAT = "DeckChat"
 BINDING_NAME_DECKCHAT_OPEN = "Open a clean chat box"
+BINDING_NAME_DECKCHAT_PASTE_GUARD = "Paste guard (no text box selected)"
+BINDING_NAME_DECKCHAT_BLOCK = "Blocked paste (does nothing)"
 
 local frame = CreateFrame("Frame")
+-- Owns the short-lived Ctrl+V block, so clearing it leaves the chords alone.
+local guardFrame = CreateFrame("Frame")
+local guardPending = false
+-- Bumped on every guard so only the latest guard's timer lifts the block.
+local guardGeneration = 0
 local ticker
 
 local function say(msg)
@@ -41,8 +52,40 @@ local function setBinding()
 		return
 	end
 	SetOverrideBinding(frame, true, CHORD, "DECKCHAT_OPEN")
+	SetOverrideBinding(frame, true, PASTE_CHORD, "DECKCHAT_PASTE_GUARD")
+	if guardPending then
+		ClearOverrideBindings(guardFrame)
+		guardPending = false
+	end
 	frame:UnregisterEvent("PLAYER_REGEN_ENABLED")
 end
+
+-- Bound to DECKCHAT_PASTE_GUARD. A focused edit box swallows the chord, so
+-- this only runs when no text box is selected: the phone's Ctrl+V is about
+-- to arrive with nowhere to go. Block it briefly so it can't fire a keybind.
+function DeckChat_PasteGuard()
+	say("nothing to paste into. Click a text box in WoW, then tap Paste on your phone again.")
+	if InCombatLockdown() then
+		return -- bindings can't change in combat; Ctrl+V does whatever it's bound to
+	end
+	SetOverrideBinding(guardFrame, true, "CTRL-V", "DECKCHAT_BLOCK")
+	guardPending = true
+	guardGeneration = guardGeneration + 1
+	local generation = guardGeneration
+	C_Timer.After(GUARD_SECONDS, function()
+		if generation ~= guardGeneration then
+			return -- a later guard owns the block now
+		end
+		if InCombatLockdown() then
+			frame:RegisterEvent("PLAYER_REGEN_ENABLED")
+			return
+		end
+		ClearOverrideBindings(guardFrame)
+		guardPending = false
+	end)
+end
+
+function DeckChat_Block() end
 
 -- Newer UI code moved the ChatEdit_* globals onto ChatFrameUtil.
 local function chatUtil(name, legacy)

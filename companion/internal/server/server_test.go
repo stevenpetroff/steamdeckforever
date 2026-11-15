@@ -65,10 +65,26 @@ func (f *fakeFeed) waitSub(t *testing.T) chan FeedEvent {
 
 type sendCall struct{ id, text string }
 
+type pasteCall = sendCall
+
 type fakeSender struct {
 	mu     sync.Mutex
 	calls  []sendCall
+	pastes []pasteCall
 	result func(id, text string) protocol.SendResult
+}
+
+func (s *fakeSender) Paste(ctx context.Context, id, text string) protocol.SendResult {
+	s.mu.Lock()
+	s.pastes = append(s.pastes, pasteCall{id, text})
+	s.mu.Unlock()
+	return protocol.SendResult{ID: id, Outcome: protocol.OutcomeSent}
+}
+
+func (s *fakeSender) Pastes() []pasteCall {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]pasteCall(nil), s.pastes...)
 }
 
 func (s *fakeSender) Send(ctx context.Context, id, text string) protocol.SendResult {
@@ -285,6 +301,10 @@ func (h *harness) authed(t *testing.T) (*websocket.Conn, string, chan FeedEvent)
 
 func sendFrame(key []byte, nonce, id string, ts int64, text string) map[string]any {
 	return map[string]any{"type": "send", "id": id, "ts": ts, "text": text, "mac": SendMAC(key, nonce, id, ts, text)}
+}
+
+func pasteFrame(key []byte, nonce, id string, ts int64, text string) map[string]any {
+	return map[string]any{"type": "paste", "id": id, "ts": ts, "text": text, "mac": PasteMAC(key, nonce, id, ts, text)}
 }
 
 func msg(i int) protocol.Message {
@@ -514,6 +534,40 @@ func TestValidSend(t *testing.T) {
 	}
 }
 
+func TestPasteGoesToPasteNotSend(t *testing.T) {
+	h := newHarness(t, nil)
+	c, nonce, _ := h.authed(t)
+	key := h.secret.Current().Bytes()
+	// A WeakAura-sized, multi-line paste: far over the old 8 KiB frame cap.
+	text := "!WA:2!" + strings.Repeat("abcDEF123+/", 9000) + "\nsecond line"
+	writeJSON(t, c, pasteFrame(key, nonce, "p1", testNow.UnixMilli(), text))
+	f := readFrame(t, c)
+	if f.Type != "send_result" || f.ID != "p1" || f.Outcome != "sent" {
+		t.Fatalf("got %+v", f)
+	}
+	if got := h.sender.Pastes(); len(got) != 1 || got[0] != (pasteCall{"p1", text}) {
+		t.Fatalf("pastes = %d calls", len(got))
+	}
+	if calls := h.sender.Calls(); len(calls) != 0 {
+		t.Fatalf("paste reached Send: %+v", calls)
+	}
+}
+
+func TestPasteWithSendMACCloses1008(t *testing.T) {
+	h := newHarness(t, nil)
+	c, nonce, _ := h.authed(t)
+	key := h.secret.Current().Bytes()
+	ts := testNow.UnixMilli()
+	// A chat send MAC must not authorize a paste of the same text.
+	f := pasteFrame(key, nonce, "p2", ts, "hi")
+	f["mac"] = SendMAC(key, nonce, "p2", ts, "hi")
+	writeJSON(t, c, f)
+	expectClose(t, c, websocket.StatusPolicyViolation)
+	if len(h.sender.Pastes()) != 0 || len(h.sender.Calls()) != 0 {
+		t.Fatal("bad paste was delivered")
+	}
+}
+
 func TestSendsRunConcurrently(t *testing.T) {
 	h := newHarness(t, nil)
 	release := make(chan struct{})
@@ -542,10 +596,25 @@ func TestSendsRunConcurrently(t *testing.T) {
 	}
 }
 
+// Before auth only small frames are accepted, so an unpaired client can't
+// make the service buffer paste-sized frames.
+func TestOversizeFrameBeforeAuthCloses(t *testing.T) {
+	h := newHarness(t, nil)
+	c := h.dial(t)
+	if f := readFrame(t, c); f.Type != "challenge" {
+		t.Fatalf("got %+v", f)
+	}
+	big := `{"type":"auth","mac":"` + strings.Repeat("0", MaxAuthFrameBytes) + `"}`
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	_ = c.Write(ctx, websocket.MessageText, []byte(big))
+	expectClose(t, c, websocket.StatusMessageTooBig)
+}
+
 func TestOversizeFrameCloses(t *testing.T) {
 	h := newHarness(t, nil)
 	c, _, _ := h.authed(t)
-	big := `{"type":"send","text":"` + strings.Repeat("x", 9000) + `"}`
+	big := `{"type":"paste","text":"` + strings.Repeat("x", MaxFrameBytes) + `"}`
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	_ = c.Write(ctx, websocket.MessageText, []byte(big))

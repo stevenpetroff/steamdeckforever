@@ -26,9 +26,13 @@ import (
 const CSP = "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self'; font-src 'self'"
 
 const (
-	// MaxFrameBytes is the largest client frame accepted; larger frames
-	// close the socket with 1009.
-	MaxFrameBytes = 8 << 10
+	// MaxFrameBytes is the largest client frame accepted after auth; larger
+	// frames close the socket with 1009. It fits a max-size paste even when
+	// every byte is JSON-escaped (\u00XX is 6 bytes).
+	MaxFrameBytes = 2 << 20
+	// MaxAuthFrameBytes is the limit before auth succeeds, so unauthenticated
+	// clients can't make the service buffer large frames.
+	MaxAuthFrameBytes = 8 << 10
 	// MaxHistory is the most messages sent in one history frame.
 	MaxHistory = 500
 	// StaleAfter is how far a send's ts may be from the server clock.
@@ -52,10 +56,13 @@ type Feed interface {
 	Snapshot() []protocol.Message
 }
 
-// Sender types one message into the game. Implementations own the
+// Sender delivers phone text into the game. Implementations own the
 // per-id idempotency (a repeated id returns the first attempt's result).
 type Sender interface {
+	// Send sends one chat line through a clean chat box.
 	Send(ctx context.Context, id, text string) protocol.SendResult
+	// Paste pastes text into whichever WoW text box has focus.
+	Paste(ctx context.Context, id, text string) protocol.SendResult
 }
 
 // StatusSource reports service health for the phone status line.

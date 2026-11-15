@@ -149,6 +149,7 @@ var fastOpts = Options{
 	ReadBackPoll:    5 * time.Millisecond,
 	KeyDelay:        time.Millisecond,
 	ChordSettle:     time.Millisecond,
+	PasteHold:       time.Millisecond,
 }
 
 func newRig(t *testing.T) *rig {
@@ -611,5 +612,52 @@ func TestCanceledContextBeforeStartIsNotStored(t *testing.T) {
 	}
 	if got := g.s.Send(context.Background(), "ctx", "hello"); got != sent("ctx") {
 		t.Fatalf("retry after cancel: %+v", got)
+	}
+}
+
+var pasteSequence = []string{
+	"down:LEFTCTRL", "down:LEFTALT", "down:LEFTSHIFT", "down:F11",
+	"up:F11", "up:LEFTSHIFT", "up:LEFTALT", "up:LEFTCTRL",
+	"down:LEFTCTRL", "down:V", "up:V", "up:LEFTCTRL",
+}
+
+// Paste mode: guard chord, then Ctrl+V. Never the chat chord, never Enter.
+func TestPastePressesGuardChordAndCtrlVOnly(t *testing.T) {
+	g := newRig(t)
+	text := "!WA:2!abc\nline two"
+	if got := g.s.Paste(context.Background(), "p1", text); got != sent("p1") {
+		t.Fatalf("result = %+v", got)
+	}
+	if s := g.clip.sets(); !eqStrings(s, []string{text}) {
+		t.Fatalf("clipboard sets = %q", s)
+	}
+	if k := g.r.keys(); !eqStrings(k, pasteSequence) {
+		t.Fatalf("keys =\n%v\nwant\n%v", k, pasteSequence)
+	}
+	checkBalanced(t, g.r.keys())
+}
+
+func TestPasteLimits(t *testing.T) {
+	g := newRig(t)
+	big := strings.Repeat("a", protocol.MaxPasteBytes)
+	if got := g.s.Paste(context.Background(), "big", big); got != sent("big") {
+		t.Fatalf("at limit: %+v", got)
+	}
+	if got := g.s.Paste(context.Background(), "over", big+"a"); got != notSent("over", protocol.ReasonTooLong) {
+		t.Fatalf("over limit: %+v", got)
+	}
+	if got := g.s.Paste(context.Background(), "empty", ""); got != notSent("empty", protocol.ReasonInvalidText) {
+		t.Fatalf("empty: %+v", got)
+	}
+}
+
+func TestPasteNotFocusedTouchesNothing(t *testing.T) {
+	g := newRig(t)
+	g.focus.focused.Store(false)
+	if got := g.s.Paste(context.Background(), "p1", "x"); got != notSent("p1", protocol.ReasonNotFocused) {
+		t.Fatalf("result = %+v", got)
+	}
+	if n := len(g.r.all()); n != 0 {
+		t.Fatalf("activity: %v", g.r.all())
 	}
 }

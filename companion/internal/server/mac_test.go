@@ -55,3 +55,12 @@ func TestMACVectors(t *testing.T) {
 		}
 	}
 }
+
+// Same vector as phone/src/hmac.test.ts, computed independently in Python.
+func TestPasteMACVector(t *testing.T) {
+	key := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	got := PasteMAC(key, "00112233445566778899aabbccddeeff", "abc123def4567890", 1763143331204, "!WA:2!héllo\nline two")
+	if want := "23c1c9a65ed4c80e43510ff214091da51d7cbf3ff2f5bbc00d47285c5b87a8d4"; got != want {
+		t.Fatalf("PasteMAC = %s, want %s", got, want)
+	}
+}

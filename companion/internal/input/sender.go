@@ -26,6 +26,10 @@ type Options struct {
 	// ChordSettle is the pause after the open-chat chord, before the paste,
 	// so WoW has opened the chat box (default 60ms).
 	ChordSettle time.Duration
+	// PasteHold is how long a paste keeps the send lock after Ctrl+V, so the
+	// game has read the clipboard before the next send replaces it
+	// (default 750ms; large pastes take Wine a moment).
+	PasteHold time.Duration
 }
 
 func (o Options) withDefaults() Options {
@@ -40,6 +44,9 @@ func (o Options) withDefaults() Options {
 	}
 	if o.ChordSettle <= 0 {
 		o.ChordSettle = 60 * time.Millisecond
+	}
+	if o.PasteHold <= 0 {
+		o.PasteHold = 750 * time.Millisecond
 	}
 	return o
 }
@@ -82,14 +89,27 @@ func NewSender(open func() (Keyboard, error), clip Clipboard, focus FocusChecker
 	}
 }
 
-// Send delivers text into WoW's chat box and returns the final result.
+// Send delivers one chat line into WoW's chat box and returns the final
+// result. See do for how repeated ids behave.
+func (s *Sender) Send(ctx context.Context, id, text string) protocol.SendResult {
+	return s.do(ctx, id, text, protocol.ModeChat)
+}
+
+// Paste pastes text into whichever WoW text box has focus, without Enter.
+// Newlines are allowed, up to protocol.MaxPasteBytes. It shares Send's
+// de-duplication by id.
+func (s *Sender) Paste(ctx context.Context, id, text string) protocol.SendResult {
+	return s.do(ctx, id, text, protocol.ModePaste)
+}
+
+// do runs one delivery and returns the final result.
 //
 // A repeated id returns the stored result of the first attempt (or waits for
 // it if it is still running) and is never sent twice. A ctx canceled before
 // the attempt starts returns not_sent/input_unavailable without storing it,
 // so a retry with the same id runs normally. Once started, an attempt always
 // runs to completion (it takes well under a second).
-func (s *Sender) Send(ctx context.Context, id, text string) protocol.SendResult {
+func (s *Sender) do(ctx context.Context, id, text string, mode protocol.Mode) protocol.SendResult {
 	s.mu.Lock()
 	if r, ok := s.done[id]; ok {
 		s.mu.Unlock()
@@ -104,7 +124,7 @@ func (s *Sender) Send(ctx context.Context, id, text string) protocol.SendResult 
 	s.inflight[id] = c
 	s.mu.Unlock()
 
-	result, store := s.run(ctx, id, text)
+	result, store := s.run(ctx, id, text, mode)
 
 	s.mu.Lock()
 	delete(s.inflight, id)
@@ -128,7 +148,7 @@ func (s *Sender) remember(id string, r protocol.SendResult) {
 	}
 }
 
-func (s *Sender) run(ctx context.Context, id, text string) (protocol.SendResult, bool) {
+func (s *Sender) run(ctx context.Context, id, text string, mode protocol.Mode) (protocol.SendResult, bool) {
 	notSent := func(r protocol.Reason) protocol.SendResult {
 		return protocol.SendResult{ID: id, Outcome: protocol.OutcomeNotSent, Reason: r}
 	}
@@ -143,10 +163,14 @@ func (s *Sender) run(ctx context.Context, id, text string) (protocol.SendResult,
 	}
 	defer func() { <-s.sendLock }()
 
-	if text == "" || strings.ContainsAny(text, "\r\n") {
+	limit := protocol.MaxMessageBytes
+	if mode == protocol.ModePaste {
+		limit = protocol.MaxPasteBytes
+	}
+	if text == "" || (mode == protocol.ModeChat && strings.ContainsAny(text, "\r\n")) {
 		return notSent(protocol.ReasonInvalidText), true
 	}
-	if len(text) > protocol.MaxMessageBytes {
+	if len(text) > limit {
 		return notSent(protocol.ReasonTooLong), true
 	}
 	if !s.focused() {
@@ -160,13 +184,20 @@ func (s *Sender) run(ctx context.Context, id, text string) (protocol.SendResult,
 		return notSent(protocol.ReasonInputUnavailable), true
 	}
 
-	steps := []struct {
+	type step struct {
 		keys  []Key
 		pause time.Duration
-	}{
+	}
+	steps := []step{
 		{Chord, s.opts.ChordSettle},
 		{[]Key{KeyLeftCtrl, KeyV}, s.opts.KeyDelay},
 		{[]Key{KeyEnter}, 0},
+	}
+	if mode == protocol.ModePaste {
+		steps = []step{
+			{PasteChord, s.opts.ChordSettle},
+			{[]Key{KeyLeftCtrl, KeyV}, s.opts.PasteHold},
+		}
 	}
 	for _, st := range steps {
 		if !s.focused() {

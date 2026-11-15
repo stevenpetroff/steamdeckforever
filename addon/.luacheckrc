@@ -5,9 +5,13 @@ exclude_files = { "DeckChat/Pairing.lua" }
 -- Globals the add-on defines.
 globals = {
 	"DeckChat_Open",
+	"DeckChat_PasteGuard",
+	"DeckChat_Block",
 	"DeckChatDB",
 	"BINDING_HEADER_DECKCHAT",
 	"BINDING_NAME_DECKCHAT_OPEN",
+	"BINDING_NAME_DECKCHAT_PASTE_GUARD",
+	"BINDING_NAME_DECKCHAT_BLOCK",
 	"SLASH_DECKCHAT1",
 	"SlashCmdList",
 }
@@ -20,6 +24,7 @@ read_globals = {
 	"ChatEdit_GetLastActiveWindow",
 	"ChatFrame_OpenChat",
 	"ChatFrameUtil",
+	"ClearOverrideBindings",
 	"CreateFrame",
 	"DEFAULT_CHAT_FRAME",
 	"DeckChatPairing", -- from Pairing.lua, written by the deckchat service

@@ -45,7 +45,7 @@ type sendResultFrame struct {
 	Reason  protocol.Reason  `json:"reason,omitempty"`
 }
 
-// clientFrame covers both client -> server frame types (auth, send).
+// clientFrame covers every client -> server frame type (auth, send, paste).
 type clientFrame struct {
 	Type string `json:"type"`
 	MAC  string `json:"mac"`
@@ -91,7 +91,7 @@ func (s *Server) serveWS(w http.ResponseWriter, r *http.Request) {
 		s.log.Warn("websocket accept failed", "remote", r.RemoteAddr, "err", err)
 		return
 	}
-	c.SetReadLimit(MaxFrameBytes)
+	c.SetReadLimit(MaxAuthFrameBytes)
 	ss := &session{
 		srv:    s,
 		conn:   c,
@@ -127,7 +127,12 @@ func (ss *session) run(parent context.Context) {
 	frames := make(chan []byte)
 	go func() {
 		defer close(frames)
-		for {
+		for first := true; ; first = false {
+			if !first {
+				// Only frames after the auth frame may be paste-sized. A bad
+				// auth closes the session before this frame is acted on.
+				ss.conn.SetReadLimit(MaxFrameBytes)
+			}
 			typ, b, err := ss.conn.Read(ctx)
 			if err != nil {
 				return
@@ -247,14 +252,21 @@ func (ss *session) handleFrame(ctx, sendCtx context.Context, key []byte, nonce s
 	if b == nil || json.Unmarshal(b, &f) != nil {
 		return errRetry("malformed frame")
 	}
-	if f.Type != "send" {
+	var macInput func(nonce, id string, ts int64, text string) string
+	var deliver func(ctx context.Context, id, text string) protocol.SendResult
+	switch f.Type {
+	case "send":
+		macInput, deliver = sendInput, ss.srv.opts.Sender.Send
+	case "paste":
+		macInput, deliver = pasteInput, ss.srv.opts.Sender.Paste
+	default:
 		ss.log.Debug("ignoring client frame", "type", f.Type)
 		return nil
 	}
 	if f.MAC == "" || f.TS == nil {
 		return errPolicy("bad mac")
 	}
-	if !verifyMAC(f.MAC, key, sendInput(nonce, f.ID, *f.TS, f.Text)) {
+	if !verifyMAC(f.MAC, key, macInput(nonce, f.ID, *f.TS, f.Text)) {
 		return errPolicy("bad mac")
 	}
 	if !validID(f.ID) {
@@ -263,13 +275,13 @@ func (ss *session) handleFrame(ctx, sendCtx context.Context, key []byte, nonce s
 	now := ss.srv.opts.Now()
 	skew := now.Sub(time.UnixMilli(*f.TS))
 	if skew > StaleAfter || skew < -StaleAfter {
-		ss.log.Info("send rejected as stale", "id", f.ID)
+		ss.log.Info(f.Type+" rejected as stale", "id", f.ID)
 		return ss.write(ctx, sendResultFrame{Type: "send_result", ID: f.ID, Outcome: protocol.OutcomeNotSent, Reason: protocol.ReasonStale})
 	}
 	id, text := f.ID, f.Text
-	ss.log.Info("send accepted", "id", id)
+	ss.log.Info(f.Type+" accepted", "id", id, "bytes", len(text))
 	go func() {
-		res := ss.srv.opts.Sender.Send(sendCtx, id, text)
+		res := deliver(sendCtx, id, text)
 		res.ID = id
 		select {
 		case results <- res:

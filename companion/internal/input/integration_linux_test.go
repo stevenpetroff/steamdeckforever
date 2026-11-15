@@ -240,6 +240,24 @@ func TestX11ClipboardRoundTrip(t *testing.T) {
 	}
 }
 
+// Paste mode: a max-size, multi-line WeakAura-style string must survive the
+// clipboard round trip intact (it has to fit in one X request).
+func TestX11ClipboardMaxPasteSize(t *testing.T) {
+	c := newTestClipboard(t)
+	line := "!WA:2!TzvBVTTrs4Fl+/" + strings.Repeat("aB3", 40) + "\n"
+	text := strings.Repeat(line, protocol.MaxPasteBytes/len(line)+1)[:protocol.MaxPasteBytes]
+	if err := c.Set(text); err != nil {
+		t.Fatal(err)
+	}
+	got, err := c.ReadBack()
+	if err != nil || got != text {
+		t.Fatalf("ReadBack: %d bytes (want %d), err %v", len(got), len(text), err)
+	}
+	if got, _ := convertAs(t, "UTF8_STRING"); got != text {
+		t.Fatalf("third client got %d bytes, want %d", len(got), len(text))
+	}
+}
+
 func TestX11ClipboardSetTwice(t *testing.T) {
 	c := newTestClipboard(t)
 	if err := c.Set("first"); err != nil {
