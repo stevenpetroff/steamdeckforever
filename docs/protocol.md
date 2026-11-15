@@ -12,7 +12,7 @@ HMAC keys are the 16 raw secret bytes (hex-decoded). MACs are lowercase hex HMAC
 
 1. Server → `{"type":"challenge","nonce":"<32 hex chars>"}` immediately after the upgrade. The nonce is single-use, per connection.
 2. Client → `{"type":"auth","mac":"<hex>"}` within 5 seconds, where `mac = HMAC(secret, "auth|" + nonce)`.
-3. On a bad or missing MAC, the server closes the socket with status 1008 (policy violation) and sends nothing else.
+3. On a bad MAC, the server closes the socket with status 1008 (policy violation) and sends nothing else. If no auth frame arrives within 5 s, or the first frame isn't `auth`, it closes with 4000 (retry).
 4. On success, the server sends `history`, then `status`, then live frames.
 
 ## Server → client
@@ -45,12 +45,17 @@ HMAC keys are the 16 raw secret bytes (hex-decoded). MACs are lowercase hex HMAC
 - `input_unavailable`: the virtual keyboard or clipboard is unavailable.
 - `stale`: `ts` is more than 10 s old.
 
+## Close codes
+
+- `1008`: bad MAC or pairing reset. The phone forgets its secret and shows "not paired".
+- `4000`: retryable protocol problem (slow handshake, malformed frame, bad id). The phone keeps its secret and reconnects with backoff.
+
 ## Client → server
 
 `{"type":"send","id":"<client id>","ts":<unix ms>,"text":"<message>","mac":"<hex>"}`
 
 - `id` is 1–64 characters of `[A-Za-z0-9_-]`, unique per message. It's reused when resending after a reconnect.
 - `mac = HMAC(secret, nonce + "|" + id + "|" + ts + "|" + text)`, using the current connection's nonce and `ts` as a decimal integer string.
-- A bad MAC closes the socket with 1008, and nothing is typed.
+- A bad or missing MAC closes the socket with 1008, and nothing is typed. A malformed frame or invalid `id` closes it with 4000.
 - A `ts` more than 10 s off the server clock gets `not_sent` / `stale`.
 - A repeated `id` gets the stored result of the first attempt (or waits for it). It's never sent to the game twice.

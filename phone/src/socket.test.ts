@@ -276,4 +276,29 @@ describe('not paired', () => {
     vi.advanceTimersByTime(60_000);
     expect(MockWS.instances).toHaveLength(1);
   });
+
+  it('on close 4000 (slow handshake), keeps the secret and reconnects', () => {
+    localStorage.setItem(SECRET_KEY, SECRET);
+    const { sock, states } = makeSocket();
+    sock.start();
+    const ws = last();
+    ws.open();
+    ws.frame({ type: 'challenge', nonce: 'dd'.repeat(16) });
+    ws.drop(4000);
+    expect(states[states.length - 1]).toBe('disconnected');
+    expect(localStorage.getItem(SECRET_KEY)).toBe(SECRET);
+    vi.advanceTimersByTime(1_000);
+    expect(MockWS.instances).toHaveLength(2);
+  });
+
+  it('on close 1008 with a send in flight, reports it not sent right away', () => {
+    localStorage.setItem(SECRET_KEY, SECRET);
+    const { sock, results } = makeSocket();
+    sock.start();
+    last().handshake('ee'.repeat(16));
+    const id = sock.send('/g hi');
+    expect(id).not.toBeNull();
+    last().drop(1008);
+    expect(results).toEqual([{ id, outcome: 'not_sent', reason: 'no_connection' }]);
+  });
 });

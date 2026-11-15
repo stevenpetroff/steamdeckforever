@@ -54,10 +54,21 @@ type clientFrame struct {
 	Text string `json:"text"`
 }
 
+// StatusRetry closes a session for a protocol problem that isn't a MAC
+// failure (slow handshake, malformed frame, bad id). The phone keeps its
+// secret and reconnects. 1008 is reserved for a bad MAC and pairing reset,
+// which make the phone forget its secret.
+const StatusRetry websocket.StatusCode = 4000
+
 // errPolicy carries a close reason for a 1008 close.
 type errPolicy string
 
 func (e errPolicy) Error() string { return string(e) }
+
+// errRetry carries a close reason for a StatusRetry close.
+type errRetry string
+
+func (e errRetry) Error() string { return string(e) }
 
 type session struct {
 	srv    *Server
@@ -141,15 +152,19 @@ func (ss *session) run(parent context.Context) {
 			return
 		}
 		var f clientFrame
-		if !key.Valid() || b == nil || json.Unmarshal(b, &f) != nil || f.Type != "auth" ||
-			!verifyMAC(f.MAC, key.Bytes(), authInput(nonce)) {
+		if b == nil || json.Unmarshal(b, &f) != nil || f.Type != "auth" {
+			ss.log.Warn("phone sent no auth frame")
+			ss.conn.Close(StatusRetry, "expected auth")
+			return
+		}
+		if !key.Valid() || !verifyMAC(f.MAC, key.Bytes(), authInput(nonce)) {
 			ss.log.Warn("phone auth failed")
 			ss.conn.Close(websocket.StatusPolicyViolation, "auth failed")
 			return
 		}
 	case <-timer.C:
 		ss.log.Warn("phone auth timed out")
-		ss.conn.Close(websocket.StatusPolicyViolation, "auth timeout")
+		ss.conn.Close(StatusRetry, "auth timeout")
 		return
 	case <-ss.killed:
 		ss.conn.Close(websocket.StatusPolicyViolation, "pairing reset")
@@ -211,9 +226,14 @@ func (ss *session) run(parent context.Context) {
 		}
 		if err != nil {
 			var pe errPolicy
-			if errors.As(err, &pe) {
+			var re errRetry
+			switch {
+			case errors.As(err, &pe):
 				ss.log.Warn("closing phone session", "reason", string(pe))
 				ss.conn.Close(websocket.StatusPolicyViolation, string(pe))
+			case errors.As(err, &re):
+				ss.log.Warn("closing phone session", "reason", string(re))
+				ss.conn.Close(StatusRetry, string(re))
 			}
 			return
 		}
@@ -221,11 +241,11 @@ func (ss *session) run(parent context.Context) {
 }
 
 // handleFrame processes one post-auth client frame. It returns errPolicy to
-// close the socket with 1008.
+// close the socket with 1008 (bad MAC) or errRetry for StatusRetry.
 func (ss *session) handleFrame(ctx, sendCtx context.Context, key []byte, nonce string, b []byte, results chan<- protocol.SendResult) error {
 	var f clientFrame
 	if b == nil || json.Unmarshal(b, &f) != nil {
-		return errPolicy("malformed frame")
+		return errRetry("malformed frame")
 	}
 	if f.Type != "send" {
 		ss.log.Debug("ignoring client frame", "type", f.Type)
@@ -238,7 +258,7 @@ func (ss *session) handleFrame(ctx, sendCtx context.Context, key []byte, nonce s
 		return errPolicy("bad mac")
 	}
 	if !validID(f.ID) {
-		return errPolicy("bad id")
+		return errRetry("bad id")
 	}
 	now := ss.srv.opts.Now()
 	skew := now.Sub(time.UnixMilli(*f.TS))

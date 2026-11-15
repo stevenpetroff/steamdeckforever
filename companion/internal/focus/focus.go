@@ -11,7 +11,9 @@ import (
 	"github.com/jezek/xgb/xproto"
 )
 
-// DefaultMatch is the substring the focused window's title must contain.
+// DefaultMatch is the title WoW's window must have. It is compared exactly
+// (after trimming spaces) so a browser tab or app with "World of Warcraft"
+// somewhere in its title never receives a paste.
 const DefaultMatch = "World of Warcraft"
 
 // Checker reads gamescope's focus properties from an Xwayland root window.
@@ -20,7 +22,7 @@ const DefaultMatch = "World of Warcraft"
 type Checker struct {
 	Display    string // X display, e.g. ":0"
 	XAuthority string // optional Xauthority path (see DialX)
-	Match      string // window title substring; DefaultMatch if empty
+	Match      string // exact window title; DefaultMatch if empty
 	// AppID, if non-zero, additionally requires GAMESCOPE_FOCUSED_APP to
 	// equal it (the Steam app id of the WoW shortcut).
 	AppID uint32
@@ -47,7 +49,7 @@ func NewGamescope(display string) *Checker {
 	return &Checker{Display: display}
 }
 
-// Focused reports whether the focused window's title contains Match.
+// Focused reports whether the focused window's title is Match.
 // Missing gamescope atoms or properties mean (false, nil). A connection
 // error is returned and the next call reconnects.
 func (c *Checker) Focused() (bool, error) {
@@ -143,7 +145,7 @@ func (c *Checker) read() (State, error) {
 	if match == "" {
 		match = DefaultMatch
 	}
-	st.Focused = name != "" && strings.Contains(name, match)
+	st.Focused = name != "" && strings.TrimSpace(name) == match
 	if c.AppID != 0 && (!st.HasApp || st.App != c.AppID) {
 		st.Focused = false
 	}

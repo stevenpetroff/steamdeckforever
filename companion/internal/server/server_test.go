@@ -307,10 +307,22 @@ func TestNonAuthFirstFrameCloses(t *testing.T) {
 	c := h.dial(t)
 	nonce := readChallenge(t, c)
 	writeJSON(t, c, sendFrame(h.secret.Current().Bytes(), nonce, "a", testNow.UnixMilli(), "hi"))
-	expectClose(t, c, websocket.StatusPolicyViolation)
+	// Not a MAC failure: retryable, so the phone keeps its secret.
+	expectClose(t, c, StatusRetry)
 	if n := len(h.sender.Calls()); n != 0 {
 		t.Fatalf("sender calls = %d", n)
 	}
+}
+
+func TestMalformedFrameAfterAuthIsRetryable(t *testing.T) {
+	h := newHarness(t, nil)
+	c, _, _ := h.authed(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := c.Write(ctx, websocket.MessageText, []byte("not json")); err != nil {
+		t.Fatal(err)
+	}
+	expectClose(t, c, StatusRetry)
 }
 
 func TestAuthTimeoutCloses(t *testing.T) {
@@ -318,7 +330,8 @@ func TestAuthTimeoutCloses(t *testing.T) {
 	c := h.dial(t)
 	readChallenge(t, c)
 	start := time.Now()
-	expectClose(t, c, websocket.StatusPolicyViolation)
+	// A slow handshake (lossy Wi-Fi) must not unpair the phone.
+	expectClose(t, c, StatusRetry)
 	if d := time.Since(start); d > 2*time.Second {
 		t.Fatalf("auth timeout took %v", d)
 	}
@@ -440,7 +453,7 @@ func TestSendInvalidIDCloses(t *testing.T) {
 			h := newHarness(t, nil)
 			c, nonce, _ := h.authed(t)
 			writeJSON(t, c, sendFrame(h.secret.Current().Bytes(), nonce, id, testNow.UnixMilli(), "hi"))
-			expectClose(t, c, websocket.StatusPolicyViolation)
+			expectClose(t, c, StatusRetry)
 			if n := len(h.sender.Calls()); n != 0 {
 				t.Fatalf("sender calls = %d", n)
 			}

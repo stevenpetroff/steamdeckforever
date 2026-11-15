@@ -31,4 +31,5 @@ export DECKCHAT_AUTH_DISPLAY=:97 DECKCHAT_AUTH_FILE=/tmp/xauth97
 
 go version
 uname -srm
-go test -tags linuxintegration -race -count=1 -v "$@" ./internal/input/... ./internal/focus/... ./cmd/...
+# -p 1: packages share the Xvfb CLIPBOARD and focus properties on :99.
+go test -p 1 -tags linuxintegration -race -count=1 -v "$@" ./internal/input/... ./internal/focus/... ./cmd/...

@@ -117,6 +117,9 @@ func TestGamescopeFocus(t *testing.T) {
 
 	x.setName(wow, "Steam")
 	mustFocused(t, c, false)
+	// A browser tab about WoW must never receive a paste.
+	x.setName(wow, "World of Warcraft - Wowhead - Mozilla Firefox")
+	mustFocused(t, c, false)
 	x.setName(wow, "World of Warcraft")
 	mustFocused(t, c, true)
 
@@ -145,8 +148,10 @@ func TestGamescopeFocus(t *testing.T) {
 	mustFocused(t, c, true)
 	c.AppID = 0
 
-	// Custom match string.
+	// Custom title: matched exactly, not as a substring.
 	c.Match = "Warcraft"
+	mustFocused(t, c, false)
+	c.Match = "World of Warcraft"
 	mustFocused(t, c, true)
 	c.Match = "Diablo"
 	mustFocused(t, c, false)

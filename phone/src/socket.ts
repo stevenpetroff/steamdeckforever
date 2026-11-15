@@ -129,7 +129,12 @@ export class DeckSocket {
   private notPaired(): void {
     this.opts.storage.removeItem(SECRET_KEY);
     this.clearTimer();
+    // Resolve pending sends now rather than leaving Compose to time out.
+    const pending = [...this.inflight.keys()];
     this.inflight.clear();
+    for (const id of pending) {
+      this.opts.handlers.onSendResult?.({ id, outcome: 'not_sent', reason: 'no_connection' });
+    }
     this.stopped = true;
     this.setState('not_paired');
   }
