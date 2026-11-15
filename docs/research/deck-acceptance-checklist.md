@@ -1,6 +1,6 @@
 # On-Deck acceptance checklist
 
-The user deferred U1's on-device spike (2026-11-14) and chose to test with Docker only. These checks can't run off-device. Run them on a Steam Deck with WoW Forever, then record the date, SteamOS version and the result next to each item.
+The on-device spike (U1) was deferred on 2026-11-14 in favor of Docker-only testing. These checks can't run off-device. Run them on a Steam Deck with WoW Forever, then record the date, SteamOS version and the result next to each item.
 
 ## What Docker already proved (2026-11-14, linux/arm64, Xvfb standing in for gamescope)
 

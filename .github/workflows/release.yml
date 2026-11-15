@@ -1,0 +1,37 @@
+name: Release
+
+# Push a tag like v0.1.0 (or v0.1.0-beta.1 for a pre-release) to publish
+# deckchat.tar.gz and its checksum on the GitHub Releases page.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: companion/go.mod
+          cache-dependency-path: companion/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: phone/package-lock.json
+      - name: Build
+        run: make release
+      - name: Test
+        run: make test && make lint-addon
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          flags=(--title "DeckChat $TAG" --generate-notes)
+          case "$TAG" in *-*) flags+=(--prerelease) ;; esac
+          gh release create "$TAG" dist/deckchat.tar.gz dist/deckchat.tar.gz.sha256 "${flags[@]}"
