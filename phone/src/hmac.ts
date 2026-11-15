@@ -119,8 +119,16 @@ export function authMac(secretHex: string, nonce: string): string {
   return bytesToHex(hmacSha256(hexToBytes(secretHex), utf8('auth|' + nonce)));
 }
 
+function sendInput(nonce: string, id: string, ts: number, text: string): string {
+  return `${nonce}|${id}|${Math.trunc(ts).toString(10)}|${text}`;
+}
+
 /** send frame MAC: HMAC(secret, nonce|id|ts|text). See docs/protocol.md. */
 export function sendMac(secretHex: string, nonce: string, id: string, ts: number, text: string): string {
-  const msg = `${nonce}|${id}|${Math.trunc(ts).toString(10)}|${text}`;
-  return bytesToHex(hmacSha256(hexToBytes(secretHex), utf8(msg)));
+  return bytesToHex(hmacSha256(hexToBytes(secretHex), utf8(sendInput(nonce, id, ts, text))));
+}
+
+/** paste frame MAC: HMAC(secret, "paste|" + nonce|id|ts|text). See docs/protocol.md. */
+export function pasteMac(secretHex: string, nonce: string, id: string, ts: number, text: string): string {
+  return bytesToHex(hmacSha256(hexToBytes(secretHex), utf8('paste|' + sendInput(nonce, id, ts, text))));
 }

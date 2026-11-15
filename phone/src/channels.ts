@@ -2,9 +2,9 @@
 import type { Channel, Message } from './types';
 
 /** Solid chat panel background (also --chat-bg in theme.css). */
-export const CHAT_BG = '#0b0907';
-/** Lightest stop of the chat panel's stone gradient (also --chat-bg-light in theme.css). */
-export const CHAT_BG_LIGHTEST = '#1c1712';
+export const CHAT_BG = '#0e0f12';
+/** Tap-highlight background behind a chat line (also --chat-bg-light in theme.css). */
+export const CHAT_BG_LIGHTEST = '#17191e';
 
 /** WoW's default chat colors per protocol channel. */
 export const WOW_COLORS: Record<Channel, string> = {

@@ -5,8 +5,8 @@
 // - Auth is challenge-response; the secret never crosses the network.
 // - In-flight sends are resent with the same id after a reconnect, but only
 //   inside the 10 s send window (the server dedupes by id, plan KTD7).
-import { authMac, randomId, sendMac } from './hmac';
-import { SEND_WINDOW_MS, type Message, type SendResult, type ServerFrame, type Status } from './types';
+import { authMac, pasteMac, randomId, sendMac } from './hmac';
+import { SEND_WINDOW_MS, type Message, type SendMode, type SendResult, type ServerFrame, type Status } from './types';
 
 export const SECRET_KEY = 'deckchat.secret';
 const SECRET_RE = /^[0-9a-f]{32}$/i;
@@ -60,6 +60,7 @@ interface InFlight {
   /** Time of the first attempt; reused on resend so the server's 10 s check holds. */
   ts: number;
   text: string;
+  mode: SendMode;
   /** Connection this send was last written to. */
   sentOn: WebSocket | null;
 }
@@ -102,9 +103,9 @@ export class DeckSocket {
    * The frame goes out now if authenticated, otherwise after the next
    * handshake (if still inside the send window).
    */
-  send(text: string): string | null {
+  send(text: string, mode: SendMode = 'chat'): string | null {
     if (this._state === 'not_paired' || !this.secret()) return null;
-    const entry: InFlight = { id: randomId(), ts: this.now(), text, sentOn: null };
+    const entry: InFlight = { id: randomId(), ts: this.now(), text, mode, sentOn: null };
     this.inflight.set(entry.id, entry);
     if (this.authed) this.write(entry);
     return entry.id;
@@ -239,13 +240,14 @@ export class DeckSocket {
     const secret = this.secret();
     if (!this.ws || !this.nonce || !secret) return;
     entry.sentOn = this.ws;
+    const mac = entry.mode === 'paste' ? pasteMac : sendMac;
     this.ws.send(
       JSON.stringify({
-        type: 'send',
+        type: entry.mode === 'paste' ? 'paste' : 'send',
         id: entry.id,
         ts: entry.ts,
         text: entry.text,
-        mac: sendMac(secret, this.nonce, entry.id, entry.ts, entry.text),
+        mac: mac(secret, this.nonce, entry.id, entry.ts, entry.text),
       }),
     );
   }

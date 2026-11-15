@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { authMac, sendMac } from './hmac';
+import { authMac, pasteMac, sendMac } from './hmac';
 import { DeckSocket, SECRET_KEY, captureSecret, type ConnState } from './socket';
 import type { SendResult } from './types';
 
@@ -49,7 +49,7 @@ class MockWS {
     });
   }
   sends() {
-    return this.sent.filter((f) => f.type === 'send');
+    return this.sent.filter((f) => f.type === 'send' || f.type === 'paste');
   }
 }
 
@@ -154,6 +154,19 @@ describe('DeckSocket handshake and dispatch', () => {
       text: 'hello Azeroth',
       mac: sendMac(SECRET, nonce, id, ts, 'hello Azeroth'),
     });
+  });
+
+  it('paste mode sends a paste frame with the paste MAC', () => {
+    localStorage.setItem(SECRET_KEY, SECRET);
+    const { sock } = makeSocket();
+    sock.start();
+    const nonce = 'cc'.repeat(16);
+    last().handshake(nonce);
+    const text = '!WA:2!abc\nline two';
+    const id = sock.send(text, 'paste')!;
+    const [frame] = last().sends();
+    const ts = Date.now();
+    expect(frame).toEqual({ type: 'paste', id, ts, text, mac: pasteMac(SECRET, nonce, id, ts, text) });
   });
 });
 

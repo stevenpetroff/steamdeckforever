@@ -57,5 +57,10 @@ export type ServerFrame =
   | { type: 'status'; status: Status };
 
 export const MAX_MESSAGE_BYTES = 255;
+/** Paste mode limit (WeakAura strings etc.); matches protocol.MaxPasteBytes. */
+export const MAX_PASTE_BYTES = 192 * 1024;
+
+/** chat: one line through a clean chat box. paste: into the focused WoW text box, no Enter. */
+export type SendMode = 'chat' | 'paste';
 /** Server rejects a send whose ts is more than 10 s old; the phone resends only inside this window. */
 export const SEND_WINDOW_MS = 10_000;

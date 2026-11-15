@@ -4,7 +4,7 @@ import { ChatView } from './chat';
 import { Compose } from './compose';
 import { DeckSocket, captureSecret, socketUrl, type ConnState } from './socket';
 import { StatusBar } from './status';
-import type { Status } from './types';
+import type { Message, Status } from './types';
 
 function byId(id: string): HTMLElement {
   const el = document.getElementById(id);
@@ -26,7 +26,7 @@ const renderStatus = () => {
 
 // `socket` is declared below; these closures only run after it exists.
 const compose = new Compose(byId('compose-host'), {
-  send: (text) => socket.send(text),
+  send: (text, mode) => socket.send(text, mode),
   cancel: (id) => socket.cancel(id),
 });
 const chat = new ChatView(byId('chat-host'), {
@@ -34,6 +34,14 @@ const chat = new ChatView(byId('chat-host'), {
     if (m.sender) compose.replyTo(m.sender, m.sender_realm);
   },
 });
+
+// The Reply shortcut targets whoever whispered us last.
+function isIncomingWhisper(m: Message): boolean {
+  return m.channel === 'whisper' && !m.outgoing && !!m.sender;
+}
+function noteWhisper(m: Message): void {
+  if (isIncomingWhisper(m)) compose.setReplyTarget(m.sender!, m.sender_realm);
+}
 
 const socket = new DeckSocket({
   url: socketUrl(window.location),
@@ -44,8 +52,19 @@ const socket = new DeckSocket({
       if (s === 'not_paired') serviceStatus = null;
       renderStatus();
     },
-    onHistory: (messages) => chat.setHistory(messages),
-    onMessage: (message) => chat.add(message),
+    onHistory: (messages) => {
+      chat.setHistory(messages);
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (isIncomingWhisper(messages[i])) {
+          noteWhisper(messages[i]);
+          break;
+        }
+      }
+    },
+    onMessage: (message) => {
+      chat.add(message);
+      noteWhisper(message);
+    },
     onStatus: (status) => {
       serviceStatus = status;
       renderStatus();

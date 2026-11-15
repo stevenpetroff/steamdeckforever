@@ -69,7 +69,7 @@ describe('send states', () => {
     const { c, send } = setup();
     type(c, 'brb');
     c.sendButton.click();
-    expect(send).toHaveBeenCalledWith('brb');
+    expect(send).toHaveBeenCalledWith('brb', 'chat');
     expect(c.state).toBe('sending');
     expect(c.cancelButton.hidden).toBe(false);
     c.handleResult({ id: 'id1', outcome: 'sent' });
@@ -206,5 +206,151 @@ describe('touch targets', () => {
     for (const b of [c.sendButton, c.cancelButton, c.confirmYes, c.confirmNo]) {
       expect(b.classList.contains('tap')).toBe(true);
     }
+  });
+});
+
+describe('channel shortcuts', () => {
+  it('adds a channel prefix and keeps the typed text', () => {
+    const { c } = setup();
+    type(c, 'brb');
+    c.shortcuts.guild.click();
+    expect(c.text).toBe('/g brb');
+    expect(c.shortcuts.guild.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('swaps one channel prefix for another', () => {
+    const { c } = setup();
+    type(c, '/p pulling');
+    expect(c.shortcuts.party.getAttribute('aria-pressed')).toBe('true');
+    c.shortcuts.raid.click();
+    expect(c.text).toBe('/ra pulling');
+    expect(c.shortcuts.party.getAttribute('aria-pressed')).toBe('false');
+    expect(c.shortcuts.raid.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('tapping the active shortcut removes its prefix', () => {
+    const { c } = setup();
+    type(c, '/guild hi all');
+    c.shortcuts.guild.click();
+    expect(c.text).toBe('hi all');
+  });
+
+  it('replaces a whisper prefix too', () => {
+    const { c } = setup();
+    type(c, '/w Thrall-Doomhowl hey');
+    c.shortcuts.guild.click();
+    expect(c.text).toBe('/g hey');
+  });
+
+  it('Reply is disabled until someone whispers, then targets them', () => {
+    const { c } = setup();
+    expect(c.shortcuts.reply.disabled).toBe(true);
+    c.setReplyTarget('Liraen', 'Mankrik');
+    expect(c.shortcuts.reply.disabled).toBe(false);
+    expect(c.shortcuts.reply.textContent).toBe('Reply Liraen');
+    type(c, '/g sure');
+    c.shortcuts.reply.click();
+    expect(c.text).toBe('/w Liraen-Mankrik sure');
+    expect(c.shortcuts.reply.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('a bare channel prefix cannot be sent', () => {
+    const { c, send } = setup();
+    c.shortcuts.guild.click();
+    expect(c.text).toBe('/g ');
+    expect(c.sendButton.disabled).toBe(true);
+    c.sendButton.click();
+    expect(send).not.toHaveBeenCalled();
+    type(c, '/g hi');
+    expect(c.sendButton.disabled).toBe(false);
+  });
+
+  it('shortcuts are disabled while sending', () => {
+    const { c } = setup();
+    type(c, '/g hi');
+    c.sendButton.click();
+    expect(c.state).toBe('sending');
+    expect(c.shortcuts.guild.disabled).toBe(true);
+    c.shortcuts.party.click();
+    expect(c.text).toBe('/g hi');
+  });
+});
+
+describe('paste mode', () => {
+  const WA = '!WA:2!TzvBVTTrs4Fl' + 'x'.repeat(4000);
+
+  it('keeps newlines, skips the 255-byte limit and sends as paste', () => {
+    const { c, send } = setup();
+    c.setMode('paste');
+    type(c, WA + '\nsecond line');
+    expect(c.text).toBe(WA + '\nsecond line');
+    expect(c.sendButton.textContent).toBe('Paste');
+    expect(c.sendButton.disabled).toBe(false);
+    expect(c.counter.textContent).toBe('3.9 KB / 192 KB');
+    c.sendButton.click();
+    expect(send).toHaveBeenCalledWith(WA + '\nsecond line', 'paste');
+  });
+
+  it('keeps the text after a successful paste so it can be retried', () => {
+    const { c } = setup();
+    c.setMode('paste');
+    type(c, WA);
+    c.sendButton.click();
+    c.handleResult({ id: 'id1', outcome: 'sent' });
+    expect(c.text).toBe(WA);
+    expect(c.notice.textContent).toContain('Pasted into WoW');
+    expect(c.sendButton.disabled).toBe(false);
+    c.clearButton.click();
+    expect(c.text).toBe('');
+  });
+
+  it('blocks pastes over 192 KB', () => {
+    const { c, send } = setup();
+    c.setMode('paste');
+    type(c, 'a'.repeat(192 * 1024 + 2048));
+    expect(c.sendButton.disabled).toBe(true);
+    expect(c.warning.textContent).toBe('Too long — remove 2.0 KB');
+    c.sendButton.click();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('turns off autocorrect and hides the channel shortcuts', () => {
+    const { c } = setup();
+    c.setMode('paste');
+    expect(c.textarea.spellcheck).toBe(false);
+    expect(c.textarea.autocapitalize).toBe('off');
+    expect(c.shortcuts.guild.parentElement!.hidden).toBe(true);
+    c.setMode('chat');
+    expect(c.textarea.spellcheck).toBe(true);
+    expect(c.shortcuts.guild.parentElement!.hidden).toBe(false);
+  });
+
+  it('keeps a separate draft per mode', () => {
+    const { c } = setup();
+    type(c, 'brb');
+    c.setMode('paste');
+    expect(c.text).toBe('');
+    type(c, WA);
+    c.setMode('chat');
+    expect(c.text).toBe('brb');
+    c.setMode('paste');
+    expect(c.text).toBe(WA);
+  });
+
+  it('tapping a player to reply switches back to chat', () => {
+    const { c } = setup();
+    c.setMode('paste');
+    c.replyTo('Thrall', 'Doomhowl');
+    expect(c.mode).toBe('chat');
+    expect(c.text).toBe('/w Thrall-Doomhowl ');
+  });
+
+  it("can't switch modes mid-send", () => {
+    const { c } = setup();
+    type(c, 'hi');
+    c.sendButton.click();
+    c.setMode('paste');
+    expect(c.mode).toBe('chat');
+    expect(c.modeButtons.paste.disabled).toBe(true);
   });
 });

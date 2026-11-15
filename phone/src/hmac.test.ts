@@ -8,6 +8,7 @@ import {
   hmacSha256,
   randomId,
   sendMac,
+  pasteMac,
   sha256,
   utf8,
 } from './hmac';
@@ -94,6 +95,13 @@ describe('protocol MACs (docs/protocol.md)', () => {
     expect(
       sendMac(secret, nonce, 'abc123def4567890', 1763143331204, 'héllo wörld ⚔️ /w Thrall-Doomhowl hi'),
     ).toBe('6f5119dcb978e1ba124e8489949cb404b07a6869c1b8c8bb83f937a221de3ad8');
+  });
+
+  it('paste mac = HMAC(secret bytes, "paste|" + nonce|id|ts|text), newlines kept', () => {
+    // Vector computed with Python's hmac module.
+    expect(pasteMac(secret, nonce, 'abc123def4567890', 1763143331204, '!WA:2!héllo\nline two')).toBe(
+      '23c1c9a65ed4c80e43510ff214091da51d7cbf3ff2f5bbc00d47285c5b87a8d4',
+    );
   });
 });
 
