@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,7 +15,7 @@ import (
 
 // doctor prints what the service would use. It never prints the pairing
 // secret or the full pairing URL.
-func doctor(ctx context.Context) error {
+func doctor() error {
 	ok := true
 	check := func(pass bool, label, detail string) {
 		mark := "ok  "

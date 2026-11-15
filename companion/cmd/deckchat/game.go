@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/stevenpetroff/steamdeckforever/companion/internal/focus"
 	"github.com/stevenpetroff/steamdeckforever/companion/internal/input"
@@ -13,11 +14,29 @@ import (
 // Mode (lingering), and gamescope restarts on every Desktop/Game Mode switch,
 // so discovery is retried whenever a call fails.
 type gameDisplay struct {
-	mu    sync.Mutex
-	find  func() (display, xauthority string, err error)
-	fc    *focus.Checker
-	clip  *input.X11Clipboard
-	where string
+	mu   sync.Mutex
+	find func() (display, xauthority string, err error)
+	fc   *focus.Checker
+	clip *input.X11Clipboard
+
+	// After a failed discovery, don't rescan /proc again until retryAt.
+	lastErr error
+	retryAt time.Time
+}
+
+// discoveryBackoff spaces out rescans while Game Mode isn't running.
+const discoveryBackoff = 5 * time.Second
+
+// locate runs discovery, backing off after a failure. Callers hold g.mu.
+func (g *gameDisplay) locate() (display, xauthority string, err error) {
+	if time.Now().Before(g.retryAt) {
+		return "", "", g.lastErr
+	}
+	display, xauthority, err = g.find()
+	if err != nil {
+		g.lastErr, g.retryAt = err, time.Now().Add(discoveryBackoff)
+	}
+	return display, xauthority, err
 }
 
 func newGameDisplay() *gameDisplay {
@@ -30,13 +49,13 @@ func (g *gameDisplay) checker() (*focus.Checker, error) {
 	if g.fc != nil {
 		return g.fc, nil
 	}
-	display, xauth, err := g.find()
+	display, xauth, err := g.locate()
 	if err != nil {
 		return nil, err
 	}
 	fc := focus.NewGamescope(display)
 	fc.XAuthority = xauth
-	g.fc, g.where = fc, display
+	g.fc = fc
 	return fc, nil
 }
 
@@ -46,7 +65,7 @@ func (g *gameDisplay) clipboard() (*input.X11Clipboard, error) {
 	if g.clip != nil {
 		return g.clip, nil
 	}
-	display, xauth, err := g.find()
+	display, xauth, err := g.locate()
 	if err != nil {
 		return nil, err
 	}
@@ -66,8 +85,10 @@ func (g *gameDisplay) reset() {
 		g.fc.Close()
 		g.fc = nil
 	}
-	g.clip = nil
-	g.where = ""
+	if g.clip != nil {
+		g.clip.Close()
+		g.clip = nil
+	}
 }
 
 // Focused implements input.FocusChecker.
@@ -105,11 +126,4 @@ func (g *gameDisplay) ReadBack() (string, error) {
 		return "", errors.New("clipboard not set up")
 	}
 	return clip.ReadBack()
-}
-
-// Display reports the display in use, or "" before discovery.
-func (g *gameDisplay) Display() string {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	return g.where
 }

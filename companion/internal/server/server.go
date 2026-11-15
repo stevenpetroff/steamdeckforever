@@ -7,6 +7,7 @@ package server
 
 import (
 	"context"
+	"github.com/stevenpetroff/steamdeckforever/companion/internal/hub"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -39,11 +40,8 @@ const (
 )
 
 // FeedEvent is one item from the chat feed: a new message, or a request to
-// resend the full history because this subscriber fell behind.
-type FeedEvent struct {
-	Message *protocol.Message
-	Resync  bool
-}
+// re-read the history because messages were dropped.
+type FeedEvent = hub.Event
 
 // Feed is the chat hub as seen by the server.
 type Feed interface {
@@ -79,9 +77,6 @@ type Options struct {
 	Secret SecretSource
 	// Static is the built phone page; index.html at its root.
 	Static fs.FS
-	// Port is the port the composition root listens on. The handler itself
-	// doesn't depend on it; it is kept here so callers configure one place.
-	Port   int
 	Logger *slog.Logger
 	Now    func() time.Time
 

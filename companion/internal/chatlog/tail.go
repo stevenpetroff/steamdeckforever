@@ -151,6 +151,9 @@ func (t *tailer) poll() {
 			return
 		}
 	}
+	if fi.Size() == t.offset {
+		return // nothing new
+	}
 	t.readNew()
 }
 

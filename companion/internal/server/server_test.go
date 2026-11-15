@@ -177,7 +177,6 @@ func newHarness(t *testing.T, mod func(*Options)) *harness {
 		Status:         h.status,
 		Secret:         h.secret,
 		Static:         fstest.MapFS{"index.html": {Data: []byte("<!doctype html><title>deckchat</title>")}, "app.js": {Data: []byte("console.log(1)")}},
-		Port:           7480,
 		Logger:         slog.New(slog.NewTextHandler(h.logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
 		Now:            func() time.Time { return testNow },
 		StatusInterval: 20 * time.Millisecond,

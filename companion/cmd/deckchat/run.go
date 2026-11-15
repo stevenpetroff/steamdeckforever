@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
 	"os"
@@ -53,8 +54,7 @@ func run(ctx context.Context, log *slog.Logger) error {
 		}
 	}()
 
-	game := newGameDisplay()
-	sender := input.NewSender(input.OpenUinput, game, game, input.Options{})
+	game, sender := newSender()
 	defer sender.Close()
 
 	srv := server.New(server.Options{
@@ -63,7 +63,6 @@ func run(ctx context.Context, log *slog.Logger) error {
 		Status: &statusSource{hub: h, game: game, sender: sender, logPath: inst.LogPath},
 		Secret: secrets,
 		Static: server.WebFS(),
-		Port:   cfg.Port,
 		Logger: log,
 	})
 
@@ -102,44 +101,36 @@ func (f hubFeed) Snapshot() []protocol.Message { return f.h.Snapshot() }
 
 func (f hubFeed) Subscribe() ([]protocol.Message, <-chan server.FeedEvent, func()) {
 	history, sub := f.h.Subscribe(256)
-	out := make(chan server.FeedEvent)
-	done := make(chan struct{})
-	go func() {
-		defer close(out)
-		for {
-			select {
-			case <-done:
-				return
-			case ev, ok := <-sub.C():
-				if !ok {
-					return
-				}
-				select {
-				case out <- server.FeedEvent{Message: ev.Message, Resync: ev.Resync}:
-				case <-done:
-					return
-				}
-			}
-		}
-	}()
-	var once sync.Once
-	return history, out, func() {
-		once.Do(func() {
-			close(done)
-			sub.Close()
-		})
-	}
+	return history, sub.C(), sub.Close
 }
 
-// statusSource builds the phone status line.
+// statusSource builds the phone status line. Every connected phone polls it
+// each second, so one reading is shared for statusTTL rather than repeating
+// the X round trips per phone.
 type statusSource struct {
 	hub     *hub.Hub
 	game    *gameDisplay
 	sender  *input.Sender
 	logPath string
+
+	mu   sync.Mutex
+	last protocol.Status
+	at   time.Time
 }
 
+const statusTTL = time.Second
+
 func (s *statusSource) Status() protocol.Status {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.at.IsZero() && time.Since(s.at) < statusTTL {
+		return s.last
+	}
+	s.last, s.at = s.read(), time.Now()
+	return s.last
+}
+
+func (s *statusSource) read() protocol.Status {
 	focused, _ := s.game.Focused()
 	last := s.hub.LastAt()
 	if fi, err := os.Stat(s.logPath); err == nil && fi.ModTime().After(last) {
@@ -251,21 +242,25 @@ func (w *pairWriter) rewrite() {
 	if ip == nil {
 		return
 	}
-	if _, err := os.Stat(w.addonDir); err != nil {
+	url := pairing.URL(ip.String(), w.port, w.secrets.Current())
+	if err := pairing.WriteLua(w.addonDir, url); errors.Is(err, fs.ErrNotExist) {
 		w.log.Warn("DeckChat add-on folder missing; re-run the installer", "dir", w.addonDir)
 		return
-	}
-	url := pairing.URL(ip.String(), w.port, w.secrets.Current())
-	if err := pairing.WriteLua(w.addonDir, url); err != nil {
+	} else if err != nil {
 		w.log.Error("writing Pairing.lua", "err", err)
 		return
 	}
 	w.log.Info("pairing code updated", "ip", ip.String())
 }
 
-func sendOnce(ctx context.Context, text string) error {
+// newSender builds the pasting sender bound to the game display.
+func newSender() (*gameDisplay, *input.Sender) {
 	game := newGameDisplay()
-	sender := input.NewSender(input.OpenUinput, game, game, input.Options{})
+	return game, input.NewSender(input.OpenUinput, game, game, input.Options{})
+}
+
+func sendOnce(ctx context.Context, text string) error {
+	_, sender := newSender()
 	defer sender.Close()
 	res := sender.Send(ctx, fmt.Sprintf("cli-%d", time.Now().UnixNano()), text)
 	if res.Outcome != protocol.OutcomeSent {

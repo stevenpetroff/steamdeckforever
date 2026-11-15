@@ -43,7 +43,7 @@ func main() {
 	case "run":
 		err = run(ctx, log)
 	case "doctor":
-		err = doctor(ctx)
+		err = doctor()
 	case "pair":
 		if len(args) != 2 || args[1] != "--reset" {
 			err = errors.New("usage: deckchat pair --reset")
