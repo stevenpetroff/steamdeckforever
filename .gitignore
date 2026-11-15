@@ -1,0 +1,10 @@
+# build output
+/dist/
+/companion/deckchat
+/phone/node_modules/
+/phone/dist/
+/companion/internal/server/web/*
+!/companion/internal/server/web/.keep
+# generated at runtime on the Deck
+/addon/DeckChat/Pairing.lua
+.DS_Store
