@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Runs inside the test image (see run.sh). Starts three Xvfb servers and runs
-# the linuxintegration tests for internal/input and internal/focus.
+# the linuxintegration tests for internal/input, internal/focus and the
+# end-to-end service test in cmd/deckchat.
 #   :99  main display (clipboard, focus properties, end-to-end sender)
 #   :98  fresh display nobody touches (gamescope atoms never interned)
 #   :97  display that requires an MIT-MAGIC-COOKIE-1 from an Xauthority file
@@ -30,4 +31,4 @@ export DECKCHAT_AUTH_DISPLAY=:97 DECKCHAT_AUTH_FILE=/tmp/xauth97
 
 go version
 uname -srm
-go test -tags linuxintegration -race -count=1 -v "$@" ./internal/input/... ./internal/focus/...
+go test -tags linuxintegration -race -count=1 -v "$@" ./internal/input/... ./internal/focus/... ./cmd/...
