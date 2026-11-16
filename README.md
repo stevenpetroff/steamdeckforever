@@ -25,14 +25,8 @@ Read and type World of Warcraft: Forever chat on your phone while you play on a 
 ## Install
 
 1. On the Deck, switch to **Desktop Mode** (hold the power button, then **Switch to Desktop**).
-2. Download the latest release:
-   - Open the [Releases page](https://github.com/stevenpetroff/steamdeckforever/releases) in the Deck's browser and download `deckchat.tar.gz`, **or**
-   - In **Konsole**:
-     ```sh
-     cd ~/Downloads
-     curl -LO https://github.com/stevenpetroff/steamdeckforever/releases/latest/download/deckchat.tar.gz
-     ```
-3. In Konsole, unpack it and run the installer:
+2. In the Deck's browser, open the [Releases page](https://github.com/stevenpetroff/steamdeckforever/releases). Under the newest release, click **Assets** and download `deckchat.tar.gz` to your **Downloads** folder.
+3. Open **Konsole**, then unpack the download and run the installer:
    ```sh
    cd ~/Downloads
    tar -xzf deckchat.tar.gz
@@ -150,7 +144,7 @@ make release       # dist/deckchat.tar.gz (linux/amd64)
 test/linux/install-smoke.sh   # install/uninstall round trip in a container
 ```
 
-To publish a release, push a tag such as `v0.2.0`. GitHub Actions builds it, runs the tests and attaches `deckchat.tar.gz` to the release.
+To publish a release, push a tag such as `v0.2.0`, or `v0.2.0-beta.1` for a pre-release. GitHub Actions builds it, runs the tests and attaches `deckchat.tar.gz` and its checksum to the release.
 
 - Design and requirements: [docs/plans/](https://github.com/stevenpetroff/steamdeckforever/tree/main/docs/plans)
 - Checks still to run on a real Deck: [docs/research/deck-acceptance-checklist.md](https://github.com/stevenpetroff/steamdeckforever/blob/main/docs/research/deck-acceptance-checklist.md)
