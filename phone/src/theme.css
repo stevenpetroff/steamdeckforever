@@ -1,0 +1,532 @@
+/*
+ * DeckChat phone theme: a clean, neutral dark messaging layout. The only WoW
+ * styling kept is the chat text itself, which uses the game's channel colors
+ * (channels.ts) and WoW's gold as the single accent. System fonts only.
+ */
+
+:root {
+  /* Chat background. Keep in sync with CHAT_BG / CHAT_BG_LIGHTEST in
+     channels.ts: channel colors are contrast-tested against these. */
+  --chat-bg: #0e0f12;
+  --chat-bg-light: #17191e;
+
+  --bg: var(--chat-bg);
+  --surface: var(--chat-bg-light);
+  --surface-2: #1f2228;
+  --line: #262a31;
+  --text: #e9eaee;
+  --muted: #8b909a;
+  --accent: #ffd100; /* WoW gold */
+  --accent-ink: #1d1700;
+  --ok: #3ddc84;
+  --warn: #ffd100;
+  --bad: #ff5a52;
+
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --tap: 44px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+  color: var(--text);
+  background: var(--bg);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: rgba(255, 209, 0, 0.3);
+}
+
+/* ---------- App shell (portrait, one-handed) ---------- */
+
+.app {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--app-top, 0px);
+  height: 100vh;
+  height: var(--app-h, 100dvh);
+  display: flex;
+  flex-direction: column;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+.frame {
+  position: relative;
+}
+
+/* ---------- Header ---------- */
+
+.titlebar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.status-host {
+  display: flex;
+  min-width: 0;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.status-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-gem {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.status[data-level='warn'] {
+  color: var(--text);
+}
+
+.status[data-level='warn'] .status-gem {
+  background: var(--warn);
+}
+
+.status[data-level='block'] {
+  color: var(--text);
+  background: rgba(255, 90, 82, 0.14);
+}
+
+.status[data-level='block'] .status-gem {
+  background: var(--bad);
+}
+
+/* ---------- Chat ---------- */
+
+.chat-frame {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.chat {
+  position: relative;
+  height: 100%;
+}
+
+.chat-list {
+  height: 100%;
+  margin: 0;
+  padding: 10px 8px 12px;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.msg {
+  position: relative;
+  padding: 5px 8px;
+  border-radius: 10px;
+  color: var(--ch, #ff0);
+  overflow-wrap: anywhere;
+}
+
+.msg-time {
+  margin-right: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.msg-channel {
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
+.msg-name {
+  font-weight: 600;
+}
+
+.msg.tappable {
+  cursor: pointer;
+}
+
+.msg.tappable:active,
+.msg.tappable:focus-visible {
+  outline: none;
+  background: var(--surface);
+}
+
+.chat-pill {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  font: 600 13px var(--font);
+  color: var(--accent-ink);
+  background: var(--accent);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.chat-pill::after {
+  content: ' \2193';
+}
+
+/* ---------- Compose ---------- */
+
+.compose-frame {
+  flex: none;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.compose {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.compose-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.compose-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: var(--tap);
+  max-height: 30vh;
+  resize: none;
+  padding: 11px 16px;
+  font: 16px/1.35 var(--font);
+  color: var(--text);
+  caret-color: var(--accent);
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: 22px;
+}
+
+.compose-input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+
+.compose-input:focus {
+  outline: none;
+  border-color: rgba(255, 209, 0, 0.5);
+}
+
+.compose-input[readonly] {
+  opacity: 0.6;
+}
+
+.compose-actions {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.compose-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 6px;
+}
+
+.compose-meta:has(.compose-warning[hidden]) .compose-counter {
+  opacity: 0.7;
+}
+
+.compose-counter {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.compose-counter.over {
+  color: var(--bad);
+  opacity: 1;
+}
+
+.compose-warning {
+  font-size: 13px;
+  color: var(--bad);
+}
+
+.compose-notice {
+  padding: 0 6px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.compose-notice[data-kind='error'] {
+  color: var(--bad);
+}
+
+.compose-notice[data-kind='ok'] {
+  color: var(--ok);
+}
+
+.compose-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--surface);
+  font-size: 14px;
+}
+
+.compose-confirm-text {
+  flex: 1 1 12em;
+}
+
+.compose-confirm-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+/* ---------- Buttons ---------- */
+
+.tap {
+  min-height: var(--tap);
+  min-width: var(--tap);
+}
+
+.btn {
+  padding: 0 18px;
+  border: 0;
+  border-radius: 22px;
+  font: 600 15px var(--font);
+  color: var(--accent-ink);
+  background: var(--accent);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: filter 80ms ease-out, transform 80ms ease-out;
+}
+
+.btn:active:not(:disabled) {
+  filter: brightness(0.9);
+  transform: scale(0.97);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  color: var(--muted);
+  background: var(--surface-2);
+  cursor: default;
+}
+
+.btn-quiet {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.btn-small {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+/* ---------- Not paired ---------- */
+
+.not-paired {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.not-paired-panel {
+  max-width: 22rem;
+  padding: 22px 22px 20px;
+  border-radius: 18px;
+  text-align: center;
+  background: var(--surface);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.not-paired-panel h2 {
+  margin: 0 0 8px;
+  font-size: 19px;
+  font-weight: 650;
+}
+
+.not-paired-copy {
+  margin: 0 0 10px;
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+.not-paired-hint {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Landscape phone: tighter chrome. */
+@media (max-height: 460px) {
+  .titlebar {
+    padding-top: calc(6px + env(safe-area-inset-top));
+    padding-bottom: 6px;
+  }
+  .title {
+    font-size: 16px;
+  }
+}
+
+/* ---------- Channel shortcuts ---------- */
+
+.compose-shortcuts {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chip {
+  flex: none;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  font: 600 13px var(--font);
+  color: var(--chip, var(--text));
+  background: var(--surface-2);
+  cursor: pointer;
+  touch-action: manipulation;
+  white-space: nowrap;
+}
+
+.chip[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--chip) 18%, transparent);
+  box-shadow: inset 0 0 0 1px var(--chip);
+}
+
+.chip:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--chip);
+  outline-offset: 2px;
+}
+
+/* ---------- Chat / Paste toggle ---------- */
+
+.compose-modes {
+  display: inline-flex;
+  flex: none;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.mode {
+  min-height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  font: 600 12px var(--font);
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.mode[aria-pressed='true'] {
+  color: var(--text);
+  background: var(--line);
+}
+
+.mode:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Paste mode: a taller box in a monospace face, so long strings are easy to check. */
+.compose[data-mode='paste'] .compose-input {
+  border-radius: 14px;
+  font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  word-break: break-all;
+  max-height: 40vh;
+}

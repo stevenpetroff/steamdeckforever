@@ -1,0 +1,32 @@
+[
+  {
+    "name": "ascii-say",
+    "secret": "00112233445566778899aabbccddeeff",
+    "nonce": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+    "auth_mac": "d889e8268af355a75717c3281079a9cd2cd51d1d2288f41cf545d1b6f10d70e3",
+    "id": "msg-1",
+    "ts": 1763143331204,
+    "text": "hello azeroth",
+    "send_mac": "f09e5a5cb65017c16458dd5cee8315a2171b0a56feb33f2fdd1ab71565c02b2a"
+  },
+  {
+    "name": "whisper-pipes",
+    "secret": "ffeeddccbbaa99887766554433221100",
+    "nonce": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+    "auth_mac": "0110c18a8dcb5274f5784d73e5b22a3b41d17d7114c5c499865b87caab787d86",
+    "id": "k3_Zx-9",
+    "ts": 1763143340000,
+    "text": "/w Thrall meet at | the gate",
+    "send_mac": "d773c7fc724eee614f4239ed0458ebad623bf66ad3e9ecdbe1f10c3afbfb3c54"
+  },
+  {
+    "name": "utf8-emote",
+    "secret": "8f2c1d9e7b6a5f4e3d2c1b0a99887766",
+    "nonce": "00000000000000000000000000000001",
+    "auth_mac": "8542c7eb2e51ff3a052cbe9e6b94e548daca08311a1b4ff9ff83b79ea8cdd0dd",
+    "id": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "ts": 1763143399999,
+    "text": "/e cheers für Ünïcödé — ok",
+    "send_mac": "59739034270a2d300df920c66431431e806b14eff72935f23726e929104405fe"
+  }
+]

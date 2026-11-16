@@ -1,0 +1,22 @@
+{
+  "name": "deckchat-phone",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "DeckChat phone page: WoW-themed chat mirror and compose box served by the deckchat service on the Steam Deck.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "check:local": "node scripts/check-local.mjs dist"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "jsdom": "^29.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  },
+  "license": "MIT"
+}

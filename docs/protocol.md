@@ -1,0 +1,70 @@
+# deckchat wire protocol
+
+The phone page and the `deckchat` service talk over one WebSocket at `ws://<deck-lan-ip>:7480/ws`. Every frame is a JSON text message with a `type` field. Go types live in `companion/internal/protocol`.
+
+## Secret
+
+The pairing secret is 16 random bytes, written as 32 lowercase hex characters. The pairing URL is `http://<deck-lan-ip>:7480/#<secret-hex>`. Browsers never send the fragment to the server. After pairing the secret never crosses the network.
+
+HMAC keys are the 16 raw secret bytes (hex-decoded). MACs are lowercase hex HMAC-SHA256.
+
+## Handshake
+
+1. Server → `{"type":"challenge","nonce":"<32 hex chars>"}` immediately after the upgrade. The nonce is single-use, per connection.
+2. Client → `{"type":"auth","mac":"<hex>"}` within 5 seconds, where `mac = HMAC(secret, "auth|" + nonce)`.
+3. On a bad MAC, the server closes the socket with status 1008 (policy violation) and sends nothing else. If no auth frame arrives within 5 s, or the first frame isn't `auth`, it closes with 4000 (retry).
+4. On success, the server sends `history`, then `status`, then live frames.
+
+## Server → client
+
+- `{"type":"history","messages":[Message, ...]}`: the full recent buffer, oldest first, at most 500. It's also re-sent after the server drops messages for a slow client. The client replaces its list and de-duplicates by `id`.
+- `{"type":"message","message":Message}`: one new chat line.
+- `{"type":"send_result","id":"<id>","outcome":"sent"|"not_sent","reason":"<reason>"}`: `reason` is present only for `not_sent`.
+- `{"type":"status","status":Status}`: sent on connect and whenever a value changes.
+
+`Message`:
+
+```json
+{"id":"1042","time":"11/14 18:02:11.204","channel":"whisper","sender":"Thrall","sender_realm":"Doomhowl","text":"hey","outgoing":false}
+```
+
+`channel` is one of `say`, `yell`, `whisper`, `party`, `party_leader`, `raid`, `raid_leader`, `raid_warning`, `guild`, `officer`, `channel`, `emote` or `system`. `channel_name` is set for `channel`, for example `2. Trade - City`. `outgoing` is true for whispers the player sent. Optional fields are omitted when empty.
+
+`Status`:
+
+```json
+{"wow_focused":true,"log_fresh":true,"last_log_at":"2026-11-14T18:02:11Z","input_available":true,"instance_paused":false}
+```
+
+`reason` is one of:
+
+- `not_focused`: WoW isn't the focused window.
+- `focus_lost`: focus moved away mid-send.
+- `too_long`: more than 255 UTF-8 bytes (`send`) or 196,608 bytes (`paste`).
+- `invalid_text`: empty, or (`send` only) contains a newline.
+- `input_unavailable`: the virtual keyboard or clipboard is unavailable.
+- `stale`: `ts` is more than 10 s old.
+
+## Close codes
+
+- `1008`: bad MAC or pairing reset. The phone forgets its secret and shows "not paired".
+- `4000`: retryable protocol problem (slow handshake, malformed frame, bad id). The phone keeps its secret and reconnects with backoff.
+
+## Client → server
+
+`{"type":"send","id":"<client id>","ts":<unix ms>,"text":"<message>","mac":"<hex>"}`
+
+- `id` is 1–64 characters of `[A-Za-z0-9_-]`, unique per message. It's reused when resending after a reconnect.
+- `mac = HMAC(secret, nonce + "|" + id + "|" + ts + "|" + text)`, using the current connection's nonce and `ts` as a decimal integer string.
+- A bad or missing MAC closes the socket with 1008, and nothing is typed. A malformed frame or invalid `id` closes it with 4000.
+- A `ts` more than 10 s off the server clock gets `not_sent` / `stale`.
+- A repeated `id` gets the stored result of the first attempt (or waits for it). It's never sent to the game twice.
+
+`{"type":"paste","id":"<client id>","ts":<unix ms>,"text":"<text>","mac":"<hex>"}`
+
+Pastes `text` into whichever WoW text box has focus (a WeakAura import box, for example) and doesn't press Enter. The service sets the clipboard, presses the add-on's paste guard chord (CTRL-ALT-SHIFT-F11), then Ctrl+V. A focused edit box swallows the chord and takes the paste. With nothing focused, the chord fires the add-on's guard, which blocks Ctrl+V for 1 s (outside combat) and prints a hint in chat. `sent` means the keys went out, not that a box received them.
+
+- `mac = HMAC(secret, "paste|" + nonce + "|" + id + "|" + ts + "|" + text)`. The prefix keeps a `send` MAC from authorizing a paste.
+- `text` may contain newlines, up to 196,608 UTF-8 bytes. After auth, client frames may be up to 2 MiB (enough for a max-size paste with every byte JSON-escaped). Before auth the limit is 8 KiB. Larger frames close with 1009.
+- After Ctrl+V the service waits 750 ms before the next send or paste, so the game has read the clipboard before it changes.
+- `id`, `ts`, staleness, close codes and de-duplication work as for `send`, sharing the same id space.
